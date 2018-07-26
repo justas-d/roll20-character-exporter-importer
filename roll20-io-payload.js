@@ -3,6 +3,7 @@ console.log("roll20-io-payload.js is injected.");
 function exportPc(pc) {
     console.log(pc);
     let data = {};
+    data.schema_version = 1;
     data.name = pc.attributes.name;
     data.avatar = pc.attributes.avatar;
     data.bio = pc._blobcache.bio;
@@ -59,7 +60,7 @@ function removeIfExists(id, root) {
     }
 }
 
-function createAndImportPc(fileHandle, errCallback) {
+function createAndImportPc(fileHandle) {
     if(!fileHandle) {
         return "No file selected";
     }
@@ -70,40 +71,44 @@ function createAndImportPc(fileHandle, errCallback) {
     reader.onload = (e) => {
         let data = JSON.parse(e.target.result);
 
-        let pc = window.Campaign.characters.create({
-            name: data.name,
-            avatar: data.avatar
-        });
+        if(data.schema_version === 1) {
+            let pc = window.Campaign.characters.create({
+                name: data.name,
+                avatar: data.avatar
+            });
 
-        pc.updateBlobs({bio: data.bio});
+            pc.updateBlobs({bio: data.bio});
 
-        for(let i = 0; i < data.attribs.length; i++) {
+            for(let i = 0; i < data.attribs.length; i++) {
 
-            let importAttrib = data.attribs[i];
-            let stored = null;
+                let importAttrib = data.attribs[i];
+                let stored = null;
 
-            for(let storedIdx = 0; storedIdx < pc.attribs.models.length; storedIdx++) {
-                let model = pc.attribs.models[storedIdx];
-                if(model.get("name") === importAttrib.name) {
-                    stored = model;
-                    break;
+                for(let storedIdx = 0; storedIdx < pc.attribs.models.length; storedIdx++) {
+                    let model = pc.attribs.models[storedIdx];
+                    if(model.get("name") === importAttrib.name) {
+                        stored = model;
+                        break;
+                    }
                 }
+
+                if(!stored) {
+                    stored = pc.attribs.create();
+                }
+
+                stored.attributes.name = importAttrib.name;
+                stored.attributes.current = importAttrib.current;
+                stored.attributes.max = importAttrib.max;
+                stored.save();
             }
 
-            if(!stored) {
-                stored = pc.attribs.create();
-            }
+            pc.view.render();
+            pc.save();
 
-            stored.attributes.name = importAttrib.name;
-            stored.attributes.current = importAttrib.current;
-            stored.attributes.max = importAttrib.max;
-            stored.save();
+            console.log("Imported as version 1!");
+        } else {
+            alert(`Unknown schema version: ${data.schema_version}`);
         }
-
-        pc.view.render();
-        pc.save();
-
-        console.log("Imported!")
     };
 
     return "";
